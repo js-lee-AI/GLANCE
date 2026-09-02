@@ -1,0 +1,12 @@
+# Analysis only: the candidate tree and the draftability law.
+numpy>=1.23
+scipy>=1.10
+
+# Decoding. Install these to run experiments/.
+torch>=2.4
+transformers>=4.57
+accelerate>=0.30
+pillow>=10.0
+
+# The block head class itself, installed separately:
+#   https://z-lab.ai/projects/dflash/

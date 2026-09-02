@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# runs
+results/
+*.jsonl
+*.log
+checkpoints/
+wandb/
+
+# data and weights
+data/
+*.safetensors
+*.bin
+*.pt
+
+# figures live under assets/ and are tracked
+*.png
+*.pdf
+!assets/
+!assets/*.png
+
+.DS_Store
+.ipynb_checkpoints/
