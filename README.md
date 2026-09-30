@@ -6,6 +6,7 @@
 
 <em>Vision Is Not Overhead: One-Pass Block Drafting for Lossless Speculative Decoding in Vision-Language Models</em>
 
+[![arXiv](https://img.shields.io/badge/arXiv-2609.00355-b31b1b.svg)](https://arxiv.org/abs/2609.00355)
 [![License: MIT](https://img.shields.io/badge/Code-MIT-green.svg)](LICENSE)
 [![Paper: CC BY 4.0](https://img.shields.io/badge/Paper-CC%20BY%204.0-blue.svg)](#citation)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
@@ -263,12 +264,12 @@ Two notes for anyone reading the decoder closely.
 @article{lee2026glance,
   title   = {Vision Is Not Overhead: One-Pass Block Drafting for Lossless
              Speculative Decoding in Vision-Language Models},
-  author  = {Lee, Jungseob},
-  year    = {2026}
+  author  = {Lee, Jungseob and Hong, Seongtae and Lee, Dongyub Jude and Park, Chanjun and Seo, Jaehyung and Eo, Sugyeong and Lim, Heuiseok},
+  journal = {arXiv preprint arXiv:2609.00355},
+  year    = {2026},
+  url     = {https://arxiv.org/abs/2609.00355}
 }
 ```
-
-The arXiv identifier is added here once it is assigned.
 
 GLANCE builds a candidate tree on top of a block-diffusion draft head in the style of [DFlash](https://arxiv.org/abs/2602.06036), which is cited rather than re-claimed. What is new here is reading the target's fused vision-language state instead of a stripped-down copy of the image, spending one pass of block marginals on width, and gating the result on exact reproduction of greedy decoding.
 
