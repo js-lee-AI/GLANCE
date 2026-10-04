@@ -7,6 +7,7 @@
 <em>Vision Is Not Overhead: One-Pass Block Drafting for Lossless Speculative Decoding in Vision-Language Models</em>
 
 [![arXiv](https://img.shields.io/badge/arXiv-2609.00355-b31b1b.svg)](https://arxiv.org/abs/2609.00355)
+[![Project Page](https://img.shields.io/badge/Project-Page-1f4e79.svg)](https://js-lee-ai.github.io/GLANCE/)
 [![License: MIT](https://img.shields.io/badge/Code-MIT-green.svg)](LICENSE)
 [![Paper: CC BY 4.0](https://img.shields.io/badge/Paper-CC%20BY%204.0-blue.svg)](#citation)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
@@ -16,7 +17,7 @@
 
 <em>One draft pass fills the whole block from the frozen target's own fused vision-language state. The block's per-offset marginals become a wide prefix-closed candidate tree at no extra draft cost, and a single ancestor-masked target pass verifies every path at once.</em>
 
-<b><a href="#overview">Overview</a> · <a href="#install">Install</a> · <a href="#decode-with-it">Decode</a> · <a href="#the-candidate-tree-on-its-own">Candidate tree</a> · <a href="#the-draftability-law">Draftability law</a> · <a href="#results">Results</a> · <a href="#reproduce-the-main-experiment">Reproduce</a> · <a href="#citation">Citation</a></b>
+<b><a href="https://js-lee-ai.github.io/GLANCE/">Project Page</a> · <a href="#overview">Overview</a> · <a href="#install">Install</a> · <a href="#decode-with-it">Decode</a> · <a href="#the-candidate-tree-on-its-own">Candidate tree</a> · <a href="#the-draftability-law">Draftability law</a> · <a href="#results">Results</a> · <a href="#reproduce-the-main-experiment">Reproduce</a> · <a href="#citation">Citation</a></b>
 
 </div>
 
