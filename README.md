@@ -31,7 +31,7 @@ GLANCE breaks the cycle at both ends.
 
 * **Vision costs the drafter nothing.** A block-diffusion head reads the frozen target's already-fused vision-language hidden states at a few kept layers. It never sees raw visual tokens, and it never pays per step for having seen the image.
 * **Depth costs no sequential passes.** One draft pass fills every offset of a block at once. Because the offsets are conditionally independent given the context, their marginals give a whole tree of candidate paths for free, and width becomes the cheap axis: it is bought inside the verify pass rather than with more draft passes.
-* **The output does not change.** One ancestor-masked target pass verifies every path, and the walk commits the longest path the target itself would have taken. At temperature 0 that is the target's greedy output, token for token, and every reported run is gated on the equality rather than assumed to have it.
+* **The output does not change.** One ancestor-masked target pass verifies every path, and the walk commits the longest path the target itself would have taken. At temperature 0 that is the target's greedy output, token for token. Exactness is measured rather than assumed, and in fp32 GLANCE is bitwise identical to greedy decoding on all 60 audited prompts.
 
 Grounded workloads reward this most. When a model reads a document or a chart, much of what it generates already exists in the image, so the next token is often near-deterministic and frequently an exact copy off the page. Those long verbatim runs cost an autoregressive drafter one pass per token and a block drafter one pass in total.
 
@@ -44,7 +44,7 @@ Grounded workloads reward this most. When a model reads a document or a chart, m
 One relation organizes the results. Accepted length is set by the target's next-token entropy,
 
 ```
-logit p = b0 - b1 * H        E[a | H] = p / (1 - p)
+logit p = b0 - b1 * H        E[a | H] ≈ p (1 - p^L) / (1 - p),   L = 15
 ```
 
 and the fitted slope steepens with grounding across all five tasks. The law transfers to a second target and to other modalities, and it names its own boundary: where entropy stays high, free-running text still favors a chain.
@@ -137,66 +137,69 @@ Single rounds are noisy, so `r2_round` is read against `r2_ceiling`, the share o
 
 ## Results
 
-Greedy decoding on Qwen3-VL-8B. Accepted length `τ` is the number of tokens committed per round and is engine independent. A speedup is always a within-system ratio against that system's own autoregressive baseline on the same card.
+Greedy decoding on Qwen3-VL-8B. Acceptance length `τ` is the mean number of tokens committed per round, so autoregressive decoding has `τ = 1`. A speedup is the ratio of the mean decode time for a token, autoregressive over speculative, with both arms measured in one engine on one GPU.
 
 ### Head to head in a production engine
 
-Both drafters run inside SGLang 0.5.6 on one card. Engine, card, and round budget are held fixed, and both verify 32 draft tokens a round, so the only structural difference left is that EAGLE3-VL produces those tokens with eight sequential passes and GLANCE with one.
+Both drafters run inside SGLang 0.5.6 on one RTX A6000 in bf16, both CUDA-graph captured and both verifying a tree of 32 draft tokens a round. Engine, GPU, and round budget are thus shared, and the draft tokens come from eight sequential passes in EAGLE3-VL and from one pass in GLANCE.
 
 | task | AR ms/tok | EAGLE3-VL τ | EAGLE3-VL ms/tok | EAGLE3-VL speedup | GLANCE τ | GLANCE ms/tok | GLANCE speedup | GLANCE faster by |
 |---|---|---|---|---|---|---|---|---|
-| captioning | 24.25 | **3.50** | **11.21** | **2.16x** | 2.91 | 13.38 | 1.81x | -16.2% |
-| TextVQA | 24.31 | **4.18** | **9.75** | **2.49x** | 3.32 | 12.04 | 2.02x | -19.1% |
-| InfographicVQA | 24.37 | 3.57 | 11.50 | 2.12x | **3.68** | **10.69** | **2.28x** | **+7.6%** |
-| DocVQA | 24.47 | 3.68 | 11.51 | 2.13x | **3.93** | **10.92** | **2.24x** | **+5.4%** |
-| ChartQA | 24.23 | 4.52 | 8.75 | 2.77x | **4.62** | **8.26** | **2.93x** | **+6.0%** |
+| captioning | 24.72 | **3.51** | **11.54** | **2.14x** | 2.92 | 13.10 | 1.89x | -11.9% |
+| TextVQA | 24.34 | **4.31** | **9.56** | **2.55x** | 3.57 | 10.76 | 2.26x | -11.2% |
+| InfographicVQA | 24.58 | 3.51 | 11.99 | 2.05x | **3.65** | **10.84** | **2.27x** | **+10.6%** |
+| DocVQA | 24.91 | 3.68 | 11.67 | 2.14x | **3.91** | **10.51** | **2.37x** | **+11.0%** |
+| ChartQA | 24.18 | 4.50 | 8.79 | 2.75x | **4.69** | **7.93** | **3.05x** | **+10.8%** |
+| geometric mean | | | | 2.31x | | | **2.34x** | **+1.3%** |
 
-Where the answer is anchored in the image, GLANCE decodes up to 2.93x faster than autoregression and up to 7.6% faster than the production head, from one draft pass a round instead of eight, with every paired bootstrap interval excluding zero.
+On the three lower-entropy tasks, whose answers are read off a document or chart, GLANCE is the faster system by 10.6 to 11.0% and reaches 3.05x the speed of autoregressive decoding on ChartQA, from one draft pass a round instead of eight. Every paired bootstrap interval excludes zero, GLANCE is faster on at least 81 of the 101 prompts of each of these tasks, and it also leads on the five-task geometric mean, by 1.3% with a 95% interval from 0.3 to 2.2%. None of the three tasks appears in GLANCE's training data.
 
-Where the output is free-running text the eight-pass chain leads instead, and the split is sharp rather than noisy. The head ranks candidates by a product of offset-wise marginals, which is exact only where the block's tokens are conditionally independent given the image. Near-determinism delivers that and open description does not. Note also that GLANCE's accepted length is ordered by grounding across all five tasks, `2.91 < 3.32 < 3.68 < 3.93 < 4.62`, while the production head's is not.
+On captioning and TextVQA, the two tasks with the highest mean entropy, the eight-pass head leads. The head ranks candidates by a product of offset-wise marginals, which is accurate when the tokens of a block are nearly determined by the image, whereas on free-running text an autoregressive drafter stays coherent by construction. Consistently, GLANCE accepts longer blocks on every lower-entropy task than on either higher-entropy task, whereas the production head places TextVQA above both DocVQA and InfographicVQA.
 
 ### Against everything shipped for this target
 
-| method (draft passes a round) | params | caption | TextVQA | InfoVQA | DocVQA | ChartQA | geomean speedup | lossless |
-|---|---|---|---|---|---|---|---|---|
-| n-gram lookup (PLD, 0) | 0 | 1.29 | 2.49 | 2.53 | 3.30 | 2.57 | 0.92x | exact |
-| Classic SD (Qwen3-VL-4B, 8) | 4.4B | **3.53** | **3.79** | **3.95** | **4.39** | 4.47 | 0.71x | exact |
-| Classic SD (Qwen3-1.7B, text only, 8) | 2.0B | 1.49 | 1.42 | 1.90 | 1.68 | 2.12 | 0.42x | exact |
-| EAGLE3-VL (production, 5) | 0.40B | 2.13 | 2.66 | 2.48 | 2.56 | 2.92 | 2.06x | exact |
-| EAGLE-2 (ViSpec codebase, 3) | 0.23B | 1.72 | 2.00 | 1.39 | 1.86 | 1.61 | 1.05x | relaxed |
-| ViSpec (official recipe, 3) | 0.31B | 1.87 | 1.96 | 2.07 | 2.37 | 2.31 | 1.20x | relaxed |
-| Medusa (same codebase, 1) | 0.08B | 1.66 | 1.55 | 1.65 | 1.46 | 1.54 | 1.07x | relaxed |
-| **GLANCE (1)** | 1.05B | 3.04 | 3.29 | 3.63 | 3.78 | **5.16** | **2.49x** | **audited** |
+| method (draft passes a round) | params | caption | TextVQA | InfoVQA | DocVQA | ChartQA | lossless |
+|---|---|---|---|---|---|---|---|
+| n-gram lookup (PLD, 0) | 0 | 1.29 | 2.49 | 2.53 | 3.30 | 2.57 | exact |
+| Classic SD (Qwen3-VL-4B, 8) | 4.4B | **3.53** | **3.79** | **3.95** | **4.39** | 4.47 | exact |
+| Classic SD (Qwen3-1.7B, text only, 8) | 2.0B | 1.49 | 1.42 | 1.90 | 1.68 | 2.12 | exact |
+| EAGLE3-VL (production, 5) | 0.40B | 2.13 | 2.66 | 2.48 | 2.56 | 2.92 | exact |
+| EAGLE-2 (ViSpec codebase, 3) | 0.23B | 2.41 | 2.45 | 2.38 | 2.54 | 2.89 | exact, audited |
+| ViSpec (official recipe, 3) | 0.31B | 2.45 | 2.43 | 2.45 | 2.46 | 2.95 | exact, audited |
+| Medusa (same codebase, 1) | 0.08B | 1.51 | 1.52 | 1.47 | 1.53 | 1.61 | exact, audited |
+| **GLANCE (1)** | 1.05B | 3.09 | 3.46 | 3.75 | 3.76 | **5.12** | **exact, audited** |
 
-The two-model arms buy acceptance and lose on wall-clock: a 4.4B drafter accepts long blocks and still ends up slower than plain autoregression. `audited` means every prompt was checked to reproduce greedy decoding bitwise, not that losslessness was argued for. The three relaxed heads reproduce it on no prompt under any tree setting, which places their divergence in the acceptance rule rather than in arithmetic.
+Among trained heads, GLANCE accepts the longest blocks on all five tasks. Classic two-model speculation with a 4B draft accepts more on four of the five tasks, but a draft half the size of the target costs about half a target pass for each drafted token, so it slows decoding on every task. `exact` marks exact acceptance, and `audited` marks output audited bitwise identical to greedy decoding in fp32, on 60 of 60 prompts for GLANCE and on 63 of 63 for the three heads from the ViSpec codebase.
 
 ### Matched training
 
-Both head architectures trained from scratch on one corpus, with the same frozen target, global batch, epochs, and framework, then scored on the same held-out prompts. The speedups here are timed in one harness and are only meaningful against each other.
+Both head architectures trained from scratch on one 26K-row corpus, with the same frozen target, global batch, schedule, and framework, then scored on 256 held-out prompts in one Hugging Face implementation.
 
-| method (draft passes a round) | params | caption | TextVQA | InfoVQA | DocVQA | ChartQA | geomean speedup |
-|---|---|---|---|---|---|---|---|
-| EAGLE3 head, depth-3 chain (3) | 0.40B | 1.62 | 1.59 | 1.55 | 1.58 | 1.87 | 1.15x |
-| **GLANCE, budget-63 tree (1)** | 1.05B | **4.05** | **3.97** | **3.90** | **4.13** | **7.44** | **2.48x** |
+| method (draft passes a round) | params | caption | TextVQA | InfoVQA | DocVQA | ChartQA |
+|---|---|---|---|---|---|---|
+| EAGLE3 head, depth-3 chain (3) | 0.40B | 1.62 | 1.59 | 1.55 | 1.58 | 1.87 |
+| **GLANCE, budget-63 tree (1)** | 1.05B | **4.05** | **3.97** | **3.90** | **4.13** | **7.44** |
 
-Pooled over the five tasks GLANCE accepts 2.7x longer blocks, and 4.0x on ChartQA. The gap replicates on a second training corpus, at 2.04 against 1.29.
+Pooled over the five tasks the acceptance ratio is 2.73, at 4.37 against 1.60. Retraining both heads on an ALLaVA-Instruct corpus under the same protocol gives 2.04 against 1.29. Timed in the same implementation on one A100, GLANCE decodes at 2.36 to 2.59x autoregressive decoding against 1.13 to 1.17x for the EAGLE-3 head. Run in SGLang under the shared tree of the production-engine comparison, GLANCE is faster on all five tasks, by 4.5% on captioning, 14.9% on TextVQA, and 16.1 to 25.7% on the three grounded tasks.
 
 ### On ViSpec's own target
 
 Qwen2.5-VL-7B, the released ViSpec head against ours trained on that target.
 
-| method (draft passes a round) | params | caption | TextVQA | InfoVQA | DocVQA | ChartQA | geomean speedup | lossless |
-|---|---|---|---|---|---|---|---|---|
-| ViSpec (released head, 3) | 0.35B | 3.34 | 3.26 | 3.21 | 3.04 | 3.59 | 1.76x | relaxed |
-| **GLANCE (1)** | 1.23B | **4.17** | **3.28** | **3.47** | **3.12** | **4.72** | **2.10x** | **audited** |
+| method (draft passes a round) | params | caption | TextVQA | InfoVQA | DocVQA | ChartQA | lossless |
+|---|---|---|---|---|---|---|---|
+| ViSpec (released head, 3) | 0.35B | 3.34 | **3.26** | 3.21 | 3.04 | 3.59 | exact, audited |
+| **GLANCE (1)** | 1.23B | **4.00** | 2.61 | **3.47** | **3.12** | **4.72** | **exact, audited** |
+
+GLANCE accepts longer blocks than the released ViSpec head on four of the five tasks.
 
 ### Where the gains come from
 
 <div align="center">
-<img src="assets/results.png" width="100%" alt="Entropy law by decile, the tree against the identical head as a chain, margin against the production head at two context lengths, and speedup against the verifier budget" />
+<img src="assets/results.png" width="100%" alt="Three panels over the five tasks: acceptance length of the identical head as a width-1 chain and as a budget-63 tree, acceptance length when the head reads text-only or fused vision-language states, and speedup against the verifier budget" />
 </div>
 
-**(a)** Accepted length against *measured* next-token entropy, by decile. The curves separate by grounding, and DocVQA's near-certain end clears the pooled ceiling. **(b)** The wide tree against the identical head run as a width-1 chain, which holds the drafter, the training and the draft budget fixed and removes only width: about 1.45x to 1.49x on every task, so the gain is the tree and not just a bigger head. **(c)** Margin against the production head at two context lengths. **(d)** Speedup against the verifier budget `N`, which is the knob `--budget` sets.
+**(a)** The identical head run as a width-1 chain and as a budget-63 tree. The tree accepts between 1.45 and 1.49x the chain's length on every task, a nearly constant factor, so the gain comes from the tree and not only from a larger head. **(b)** The head reading the target's fused states or a text-only language model's states, at budget 31. With the text-only states, acceptance falls on every task and most on grounded ones, since those states retain 97% of GLANCE's acceptance on captioning but only 80% on DocVQA. **(c)** Speedup against the verifier budget `N`, which is the knob `--budget` sets. Speedup rises from 15 to 31 on every task and then flattens.
 
 ## Reproduce the main experiment
 
