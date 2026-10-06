@@ -39,7 +39,7 @@ Grounded workloads reward this most. When a model reads a document or a chart, m
 <img src="assets/teaser.png" width="70%" alt="On a document page the image pins the answer and one draft pass commits the whole block; on open captioning the same pass commits only a short prefix" />
 </div>
 
-<div align="center"><em>On a document page the image pins the answer, entropy is low, and one draft pass commits the entire block. On open captioning many continuations are admissible, entropy is high, and the same pass commits only a short prefix.</em></div>
+<div align="center"><em>On a document page the image pins the answer and one draft pass commits the entire block. On open captioning many continuations are admissible, and the same pass commits only a short prefix.</em></div>
 
 One relation organizes the results. Accepted length is set by the target's next-token entropy,
 
