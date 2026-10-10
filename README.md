@@ -21,6 +21,12 @@
 
 </div>
 
+<p align="center">
+  <a href="https://js-lee-ai.github.io/GLANCE/#race"><img src="assets/replay.gif" width="88%" alt="Three decoders each write a 256-token answer to one ChartQA question with Qwen3-VL-8B on one RTX A6000. GLANCE finishes in 1.97 s, EAGLE3-VL in 2.63 s and autoregressive decoding in 6.19 s" /></a>
+</p>
+
+<p align="center"><em>Qwen3-VL-8B on one RTX A6000. The <a href="https://js-lee-ai.github.io/GLANCE/#race">project page</a> replays it live.</em></p>
+
 ---
 
 ## Overview
